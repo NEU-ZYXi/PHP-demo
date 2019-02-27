@@ -1,10 +1,46 @@
 <?php 
-
+include("config.php");
 include("classes/DomDocumentParser.php");
 
 // recursively crawl websites
 $crawled = array();
 $crawling = array();
+$imagesFound = array();
+
+function insertLink($url, $title, $description, $keywords) {
+	global $con;
+
+	// use placeholder in prepare syntax, and bind actual parameter values separatly which is more secure
+	$query = $con->prepare("INSERT INTO sites(url, title, description, keywords) VALUES(:url, :title, :description, :keywords)");
+	$query->bindParam(":url", $url);
+	$query->bindParam(":title", $title);
+	$query->bindParam(":description", $description);
+	$query->bindParam(":keywords", $keywords);
+
+	return $query->execute();
+}
+
+function checkDuplicate($url) {
+	global $con;
+
+	$query = $con->prepare("SELECT * FROM sites WHERE url=:url");
+	$query->bindParam(":url", $url);
+	$query->execute();
+
+	return $query->rowCount() != 0;
+}
+
+function insertImage($url, $src, $alt, $title) {
+	global $con;
+
+	$query = $con->prepare("INSERT INTO images(url, src, alt, title) VALUES(:url, :src, :alt, :title)");
+	$query->bindParam(":url", $url);
+	$query->bindParam(":src", $src);
+	$query->bindParam(":alt", $alt);
+	$query->bindParam(":title", $title);
+
+	return $query->execute();
+}
 
 function createLink($src, $url) {
 
@@ -40,6 +76,8 @@ function createLink($src, $url) {
 }
 
 function getDetails($url) {
+
+	global $imagesFound;
 	
 	$parser = new DomDocumentParser($url);
 	
@@ -72,7 +110,32 @@ function getDetails($url) {
 	$keywords = str_replace("\n", "", $keywords);
 
 	// insert details in database
+	if (checkDuplicate($url)) {
+		echo "$url already exists<br>";
+	} else if (insertLink($url, $title, $description, $keywords)) {
+		echo "successful $url inserted<br>";
+	} else {
+		echo "error<br>";
+	}
 
+	$imageArray = $parser->getImages();
+	foreach ($imageArray as $image) {
+		$src = $image->getAttribute("src");
+		$title = $image->getAttribute("title");
+		$alt = $image->getAttribute("alt");
+
+		if (!$title && !$alt) {
+			continue;
+		}
+
+		$src = createLink($src, $url);
+
+		if (!in_array($src, $imagesFound)) {
+			$imagesFound[] = $src;
+
+			insertImage($url, $src, $alt, $title);
+		}
+	}
 }
 
 function followLinks($url) {
@@ -101,12 +164,10 @@ function followLinks($url) {
 			$crawling[] = $href;
 
 			getDetails($url);
-		} else {
-			return;
-		}
+		} 
 
-		// insert links in database
-		
+		// for early terminate testing
+		else return;
 	}
 
 	array_shift($crawling);
@@ -116,7 +177,7 @@ function followLinks($url) {
 	}
 }
 
-$startUrl = "http://www.bbc.com";
+$startUrl = "http://www.google.com";
 followLinks($startUrl);
 
  ?>

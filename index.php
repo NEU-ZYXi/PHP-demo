@@ -9,7 +9,7 @@
 	<div class="wrapper index-page">
 		<div class="main-section">
 			<div class="logo">
-				<img src="assets/images/home-logo.png">
+				<img src="assets/images/home-logo.png" alt="Logo" title="Xi Search">
 			</div>
 
 			<div class="search-container">
